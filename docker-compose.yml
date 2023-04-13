@@ -1,0 +1,13 @@
+version: "3"
+services:
+  actions:
+    image: rainbow12/actions:0.0.3
+    container_name: ActionsTest
+    environment:
+         - DJANGO_DEBUG=False
+    ports:
+        - "2000:8000"
+    tty: true
+    stdin_open: true
+    command: bash start.sh 
+   
