@@ -1,0 +1,75 @@
+name: Django CI
+
+on:
+  push:
+    branches: ["dev"]
+  pull_request:
+    branches: ["dev"]
+
+env:
+  Version: "0.0.3"
+  ImageName: "actions"
+  ProjectdDir: "/home/CI"
+
+jobs:
+  ProjectTest:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v3
+        with:
+          python-version: '3.10'
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run Tests
+        run: |
+          python manage.py test
+      
+      - name: Update StartFile
+        uses: nogsantos/scp-deploy@master
+        with:
+          src: ./docker-compose.yml
+          host: ${{ secrets.SERVER_HOST }}
+          remote: ${{ env.ProjectdDir }}
+          user: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_KEY }}
+
+  ProjectPush:
+    runs-on: ubuntu-latest
+    needs: ProjectTest
+
+    steps:
+      - name: Login to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOKCER_USERNAME }}
+          password: ${{ secrets.DOCKER_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v4
+        with:
+          push: true
+          tags: ${{ secrets.DOKCER_USERNAME }}/${{ env.ImageName }}:${{ env.Version }}
+
+  ServerDeploy:
+    runs-on: ubuntu-latest
+    needs: ProjectPush
+
+    steps: 
+      - name: Project Deploy Service
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_KEY }}
+          script: |
+            # echo "hello server"
+            cd ${{ env.ProjectdDir}}
+            docker compose down 
+            docker compose up -d --build
